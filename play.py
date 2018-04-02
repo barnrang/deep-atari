@@ -1,4 +1,4 @@
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import *
 from keras.optimizers import Adam
 from keras import backend as K
@@ -8,18 +8,15 @@ import numpy as np
 import gym
 from collections import deque
 
-EP = 5000
-
 class Config:
     img_size = (210, 160, 3)
     dropout_rate = 0.75
     lr = 3e-5
-    action_choices = 3
+    action_choices = 4
     epsilon = 1.
     epsilon_min = 0.1
     epsilon_decay = 0.99
     gamma = 0.95
-
 
 class DQAgent:
     def __init__(self, config):
@@ -91,38 +88,23 @@ class DQAgent:
     def load_model(self, path):
         self.model.load_weights(path)
 
-
 def main():
-    env = gym.make('Breakout-v0')
-    state_space = env.observation_space.shape
-    action_size = env.action_space.n
     config = Config()
-    config.action_choices = action_size
-    config.img_size = state_space
     agent = DQAgent(config)
     agent.load_model('model/atariv1.h5')
+    env = gym.make('Breakout-v0')
+    observation = env.reset()
+    state = np.expand_dims(observation, axis=0)
     done = False
-    batch_size = 32
-
-    for e in range(EP):
-        state = env.reset()
-        state = state.reshape((1,) + state_space)
-        point = 0
-        for t in range(5000):
-            action = agent.act(state)
-            next_state, reward, done, _ = env.step(action)
-            reward  = reward if not done else -10
-            point += reward
-            next_state = next_state.reshape((1,) + state_space)
-            agent.remember(state, action, reward, next_state, done)
-            state = next_state
-            if done:
-                agent.update_target_model()
-                print('episode {}/{}, score: {}'.format(e, EP, point))
-                break
-        agent.replay(batch_size)
-        if e % 100 == 0:
-            agent.save_model('model/atariv1.h5')
+    tot_reward = 0.0
+    while not done:
+        env.render()                    # Uncomment to see game running
+        Q = agent.model.predict(state)[0]
+        action = np.argmax(Q)
+        observation, reward, done, info = env.step(action)
+        state = np.expand_dims(observation, axis=0)
+        tot_reward += reward
+    print('Game ended! Total reward: {}'.format(reward))
 
 if __name__ == "__main__":
     main()
