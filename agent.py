@@ -11,7 +11,7 @@ from collections import deque
 EP = 5000
 
 class Config:
-    img_size = (210, 160, 3)
+    img_size = (210, 160, 1)
     dropout_rate = 0.75
     lr = 3e-5
     action_choices = 3
@@ -20,12 +20,10 @@ class Config:
     epsilon_decay = 0.99
     gamma = 0.95
 
-
 class DQAgent:
     def __init__(self, config):
         self.config = config
         self.model = self._build_model()
-        self.target_model = self._build_model()
         self.memory = deque(maxlen=2000)
 
     def _huber_loss(self, target, pred, clip_delta=1.):
@@ -34,11 +32,12 @@ class DQAgent:
         loss = tf.where(cond, 0.5 * K.square(error), clip_delta * (error - 0.5 * clip_delta))
         return K.mean(loss)
 
+
     def _build_model(self):
         bottle_seq = [
-            Conv2D(32,(5,5),padding='valid', activation='relu', input_shape=self.config.img_size),
+            Conv2D(32,(7,7),padding='valid', activation='relu', input_shape=self.config.img_size),
             MaxPooling2D(),
-            Conv2D(64,(3,3),padding='valid', activation='relu'),
+            Conv2D(64,(5,5),padding='valid', activation='relu'),
             MaxPooling2D(),
             Conv2D(128,(3,3),padding='valid', activation='relu'),
             MaxPooling2D(),
@@ -56,6 +55,11 @@ class DQAgent:
         model.compile(optimizer=Adam(self.config.lr), loss=self._huber_loss)
         return model
 
+
+    # Transform before passing images
+    def gray_scale(self, images):
+        return images[:,:,:,:1] * 0.21 + images[:,:,:,1:2] * 0.72 + images[:,:,:,2:] * .07
+
     def update_target_model(self):
         self.target_model.set_weights(self.model.get_weights())
 
@@ -71,13 +75,15 @@ class DQAgent:
             return
         minibatch = random.sample(self.memory, batch_size)
         for state, action, reward, next_state, done in minibatch:
-            target = self.model.predict(state)
+            inp = self.gray_scale(state)
+            target = self.model.predict(inp)
             if done:
                 target[0][action] = reward
             else:
-                a = self.model.predict(next_state)[0]
-                t = self.target_model.predict(next_state)[0]
-                target[0][action] = reward + self.config.gamma * np.max(t)
+                inp = self.gray_scale(next_state)
+                a = self.model.predict(inp)[0]
+                #t = self.target_model.predict(next_state)[0]
+                target[0][action] = reward + self.config.gamma * np.max(a)
             self.model.fit(state, target, epochs=1, verbose=0)
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay
@@ -94,7 +100,7 @@ class DQAgent:
 
 def main():
     env = gym.make('Breakout-v0')
-    state_space = env.observation_space.shape
+    state_space = env.observation_space.shape[:2] + (,1)
     action_size = env.action_space.n
     config = Config()
     config.action_choices = action_size
@@ -109,7 +115,8 @@ def main():
         state = state.reshape((1,) + state_space)
         point = 0
         for t in range(5000):
-            action = agent.act(state)
+            inp = agent.gray_scale(state)
+            action = agent.act(inp)
             next_state, reward, done, _ = env.step(action)
             reward  = reward if not done else -10
             point += reward
@@ -117,7 +124,6 @@ def main():
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:
-                agent.update_target_model()
                 print('episode {}/{}, score: {}'.format(e, EP, point))
                 break
         agent.replay(batch_size)
