@@ -8,7 +8,7 @@ import numpy as np
 import gym
 from collections import deque
 
-EP = 5000
+EP = 50000
 
 class Config:
     img_size = (210, 160, 1)
@@ -17,13 +17,14 @@ class Config:
     action_choices = 3
     epsilon = 1.
     epsilon_min = 0.1
-    epsilon_decay = 0.99
+    epsilon_decay = 0.999
     gamma = 0.95
 
 class DQAgent:
     def __init__(self, config):
         self.config = config
         self.model = self._build_model()
+        self.target_model = self._build_model()
         self.memory = deque(maxlen=2000)
 
     def _huber_loss(self, target, pred, clip_delta=1.):
@@ -45,9 +46,9 @@ class DQAgent:
         ]
 
         action_seq = [
-            Dense(128,activation='relu'),
+            Dense(256,activation='relu'),
             Dropout(self.config.dropout_rate),
-            Dense(64, activation='relu'),
+            Dense(128, activation='relu'),
             Dropout(self.config.dropout_rate),
             Dense(self.config.action_choices, activation='linear')
         ]
@@ -82,9 +83,10 @@ class DQAgent:
             else:
                 inp = self.gray_scale(next_state)
                 a = self.model.predict(inp)[0]
-                #t = self.target_model.predict(next_state)[0]
-                target[0][action] = reward + self.config.gamma * np.max(a)
-            self.model.fit(state, target, epochs=1, verbose=0)
+                t = self.target_model.predict(inp)[0]
+                target[0][action] = reward + self.config.gamma * t[np.argmax(a)]
+            #print(target)
+            self.model.fit(inp, target, epochs=1, verbose=0)
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay
 
@@ -100,27 +102,29 @@ class DQAgent:
 
 def main():
     env = gym.make('Breakout-v0')
-    state_space = env.observation_space.shape[:2] + (,1)
+    state_space = env.observation_space.shape[:2] + (1,)
+    print(state_space)
     action_size = env.action_space.n
     config = Config()
     config.action_choices = action_size
     config.img_size = state_space
     agent = DQAgent(config)
-    agent.load_model('model/atariv1.h5')
+    #agent.load_model('model/atariv1.h5')
     done = False
     batch_size = 32
 
     for e in range(EP):
         state = env.reset()
-        state = state.reshape((1,) + state_space)
+        state = np.expand_dims(state, axis=0)
         point = 0
         for t in range(5000):
+            
             inp = agent.gray_scale(state)
             action = agent.act(inp)
             next_state, reward, done, _ = env.step(action)
-            reward  = reward if not done else -10
+            reward  = reward if not done else -1
             point += reward
-            next_state = next_state.reshape((1,) + state_space)
+            next_state = np.expand_dims(next_state, axis=0)
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:
@@ -128,7 +132,8 @@ def main():
                 break
         agent.replay(batch_size)
         if e % 100 == 0:
-            agent.save_model('model/atariv1.h5')
+            agent.update_target_model()
+            agent.save_model('model/atariv2.h5')
 
 if __name__ == "__main__":
     main()
