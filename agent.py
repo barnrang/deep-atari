@@ -113,6 +113,8 @@ def main():
     done = False
     batch_size = 32
 
+    agent.update_target_model()
+
     for e in range(EP):
         state = env.reset()
         state = np.expand_dims(state, axis=0)
