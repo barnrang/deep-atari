@@ -87,7 +87,7 @@ class DQAgent:
                 a = self.model.predict(next_state)[0]
                 t = self.target_model.predict(next_state)[0]
                 target[0][action] = reward + self.config.gamma * t[np.argmax(a)]
-            #print(target)
+
             self.model.fit(state, target, epochs=1, verbose=0)
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay
@@ -104,14 +104,14 @@ class DQAgent:
 
 def main():
     env = gym.make('Breakout-v0')
+
+    # input dimension (210,  160, 4)
     state_space = env.observation_space.shape[:2] + (4,)
-    print(state_space)
     action_size = env.action_space.n
     config = Config()
     config.action_choices = action_size
     config.img_size = state_space
     agent = DQAgent(config)
-    #agent.load_model('model/atariv1.h5')
     batch_size = 32
 
     agent.update_target_model()
@@ -125,27 +125,23 @@ def main():
         done = False
         for t in range(5000):
             action = agent.act(state)
-            next_state = []
-            reward = 0
-            for i in range(4):
-                # If not yet done, request next scene
+            next_state = state.copy()
+            tmp, reward, done, _ = env.step(action)
+            tmp_state = agent.gray_scale(np.expand_dims(tmp, axis=0))
 
-                if not done:
-                    tmp, tmp_reward, done, _ = env.step(action)
-                    tmp = np.expand_dims(tmp, axis=0)
-                gray_tmp = agent.gray_scale(tmp)
-                next_state.append(gray_tmp)
-                reward += tmp_reward
+            # Stacking most recent 4 screens
+            # Shift 3 to left (history) and append to the right
+            next_state[:,:,:,0:3] = next_state[:,:,:,1:4]
+            next_state[:,:,:,3] = tmp_state
 
-            # Stack them up
-            next_state = np.stack(next_state, axis=-1)[0]
             reward  = reward if not done else -1
             point += reward
-            next_state = np.expand_dims(next_state, axis=0)
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:
                 print('episode {}/{}, score: {}'.format(e, EP, point))
+
+                # Print counted frames
                 print(t)
                 agent.update_target_model()
                 break
