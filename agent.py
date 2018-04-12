@@ -104,7 +104,7 @@ class DQAgent:
 
 def main():
     env = gym.make('Breakout-v0')
-    state_space = env.observation_space.shape[:2] + (1,)
+    state_space = env.observation_space.shape[:2] + (4,)
     print(state_space)
     action_size = env.action_space.n
     config = Config()
@@ -112,7 +112,6 @@ def main():
     config.img_size = state_space
     agent = DQAgent(config)
     #agent.load_model('model/atariv1.h5')
-    done = False
     batch_size = 32
 
     agent.update_target_model()
@@ -123,17 +122,23 @@ def main():
         state = agent.gray_scale(state)
         state = np.stack([state for _ in range(4)], axis=-1)
         point = 0
+        done = False
         for t in range(5000):
             action = agent.act(state)
             next_state = []
             reward = 0
             for i in range(4):
+                # If not yet done, request next scene
+
                 if not done:
                     tmp, tmp_reward, done, _ = env.step(action)
+                    tmp = np.expand_dims(tmp, axis=0)
                 gray_tmp = agent.gray_scale(tmp)
                 next_state.append(gray_tmp)
                 reward += tmp_reward
-            next_state = np.stack(next_state, axis=-1)
+
+            # Stack them up
+            next_state = np.stack(next_state, axis=-1)[0]
             reward  = reward if not done else -1
             point += reward
             next_state = np.expand_dims(next_state, axis=0)
@@ -141,6 +146,7 @@ def main():
             state = next_state
             if done:
                 print('episode {}/{}, score: {}'.format(e, EP, point))
+                print(t)
                 agent.update_target_model()
                 break
         agent.replay(batch_size)
