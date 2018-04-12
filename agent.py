@@ -76,8 +76,8 @@ class DQAgent:
             return
         minibatch = random.sample(self.memory, batch_size)
         for state, action, reward, next_state, done in minibatch:
-            inp = self.gray_scale(state)
-            target = self.model.predict(inp)
+            inpu = self.gray_scale(state)
+            target = self.model.predict(inpu)
             if done:
                 target[0][action] = reward
             else:
@@ -86,7 +86,7 @@ class DQAgent:
                 t = self.target_model.predict(inp)[0]
                 target[0][action] = reward + self.config.gamma * t[np.argmax(a)]
             #print(target)
-            self.model.fit(inp, target, epochs=1, verbose=0)
+            self.model.fit(inpu, target, epochs=1, verbose=0)
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay
 
@@ -120,7 +120,7 @@ def main():
         state = np.expand_dims(state, axis=0)
         point = 0
         for t in range(5000):
-            
+
             inp = agent.gray_scale(state)
             action = agent.act(inp)
             next_state, reward, done, _ = env.step(action)
