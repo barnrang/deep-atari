@@ -14,7 +14,7 @@ class Config:
     dropout_rate = 0.75
     lr = 3e-5
     action_choices = 4
-    epsilon = 1.
+    epsilon = 0.
     epsilon_min = 0.1
     epsilon_decay = 0.99
     gamma = 0.95
@@ -30,7 +30,7 @@ def main():
     done = False
     tot_reward = 0.0
     while not done:
-        env.render()                    # Uncomment to see game running
+        env.render()               
         inp = agent.gray_scale(state)
         Q = agent.model.predict(inp)[0]
         action = np.argmax(Q)

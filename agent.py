@@ -1,4 +1,4 @@
-from keras.models import Sequential
+from keras.models import Sequential, Model
 from keras.layers import *
 from keras.optimizers import Adam
 from keras import backend as K
@@ -11,7 +11,7 @@ from collections import deque
 EP = 50000
 
 class Config:
-    img_size = (210, 160, 1)
+    img_size = (210, 160, 4)
     dropout_rate = 0.75
     lr = 3e-5
     action_choices = 3
@@ -31,10 +31,12 @@ class DQAgent:
         error = K.abs(target - pred)
         cond = error < clip_delta
         loss = tf.where(cond, 0.5 * K.square(error), clip_delta * (error - 0.5 * clip_delta))
-        return K.mean(loss)
+        return loss
 
 
     def _build_model(self):
+        frames_input = Input(self.config.img_size)
+        normalized = Lambda(lambda x: x / 255.0)(frames_input)
         bottle_seq = [
             Conv2D(32,(7,7),padding='valid', activation='relu', input_shape=self.config.img_size),
             MaxPooling2D(),
@@ -52,14 +54,16 @@ class DQAgent:
             Dropout(self.config.dropout_rate),
             Dense(self.config.action_choices, activation='linear')
         ]
-        model = Sequential(bottle_seq + action_seq)
+        tmp_model = Sequential(bottle_seq + action_seq)
+        out = tmp_model(normalized)
+        model = Model(input=frames_input, output=out)
         model.compile(optimizer=Adam(self.config.lr), loss=self._huber_loss)
         return model
 
 
     # Transform before passing images
     def gray_scale(self, images):
-        return images[:,:,:,:1] * 0.21 + images[:,:,:,1:2] * 0.72 + images[:,:,:,2:] * .07
+        return np.mean(images, axis=3).astype(np.uint8)
 
     def update_target_model(self):
         self.target_model.set_weights(self.model.get_weights())
@@ -76,17 +80,15 @@ class DQAgent:
             return
         minibatch = random.sample(self.memory, batch_size)
         for state, action, reward, next_state, done in minibatch:
-            inp = self.gray_scale(state)
-            target = self.model.predict(inp)
+            target = self.model.predict(state)
             if done:
                 target[0][action] = reward
             else:
-                inp = self.gray_scale(next_state)
-                a = self.model.predict(inp)[0]
-                t = self.target_model.predict(inp)[0]
+                a = self.model.predict(next_state)[0]
+                t = self.target_model.predict(next_state)[0]
                 target[0][action] = reward + self.config.gamma * t[np.argmax(a)]
             #print(target)
-            self.model.fit(inp, target, epochs=1, verbose=0)
+            self.model.fit(state, target, epochs=1, verbose=0)
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay
 
@@ -118,12 +120,20 @@ def main():
     for e in range(EP):
         state = env.reset()
         state = np.expand_dims(state, axis=0)
+        state = agent.gray_scale(state)
+        state = np.stack([state for _ in range(4)], axis=-1)
         point = 0
         for t in range(5000):
-            
-            inp = agent.gray_scale(state)
-            action = agent.act(inp)
-            next_state, reward, done, _ = env.step(action)
+            action = agent.act(state)
+            next_state = []
+            reward = 0
+            for i in range(4):
+                if not done:
+                    tmp, tmp_reward, done, _ = env.step(action)
+                gray_tmp = agent.gray_scale(tmp)
+                next_state.append(gray_tmp)
+                reward += tmp_reward
+            next_state = np.stack(next_state, axis=-1)
             reward  = reward if not done else -1
             point += reward
             next_state = np.expand_dims(next_state, axis=0)
@@ -131,10 +141,10 @@ def main():
             state = next_state
             if done:
                 print('episode {}/{}, score: {}'.format(e, EP, point))
+                agent.update_target_model()
                 break
         agent.replay(batch_size)
         if e % 100 == 0:
-            agent.update_target_model()
             agent.save_model('model/atariv2.h5')
 
 if __name__ == "__main__":
