@@ -1,10 +1,12 @@
 from keras.models import Sequential, Model
 from keras.layers import *
+from fast_queue import fast_queue
 from keras.optimizers import Adam
 from keras import backend as K
 import tensorflow as tf
 import random
 import numpy as np
+import gym
 from collections import deque
 
 class DQAgent:
@@ -12,7 +14,7 @@ class DQAgent:
         self.config = config
         self.model = self._build_model()
         self.target_model = self._build_model()
-        self.memory = deque(maxlen=2000)
+        self.memory = fast_queue(size=5000)
 
     def _huber_loss(self, target, pred, clip_delta=1.):
         error = K.abs(target - pred)
@@ -65,17 +67,20 @@ class DQAgent:
     def replay(self, batch_size):
         if batch_size > len(self.memory):
             return
-        minibatch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in minibatch:
+        batch_indice = self.memory.random_batch(batch_size)
+        minibatch = [self.memory[x] for x in batch_indice]
+        for idx, (state, action, reward, next_state, done) in enumerate(minibatch):
             target = self.model.predict(state)
             if done:
                 target[0][action] = reward
             else:
-                a = self.model.predict(next_state)[0]
-                t = self.target_model.predict(next_state)[0]
-                target[0][action] = reward + self.config.gamma * t[np.argmax(a)]
+                # Double Q-learning
+                t_inner = self.model.predict(next_state)[0]
+                t_score = self.target_model.predict(next_state)[0][np.argmax(t_inner)]
+                target[0][action] = reward + self.config.gamma * t_score
 
-            self.model.fit(state, target, epochs=1, verbose=0)
+            self.model.fit(state, target, epochs=1, verbose=0, callbacks=[self.memory])
+            self.memory.save_loss(batch_indice[idx])
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay
 
@@ -87,6 +92,3 @@ class DQAgent:
 
     def load_model(self, path):
         self.model.load_weights(path)
-
-
-
