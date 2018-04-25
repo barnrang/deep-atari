@@ -14,7 +14,7 @@ class DQAgent:
         self.config = config
         self.model = self._build_model()
         self.target_model = self._build_model()
-        self.memory = fast_queue(size=5000)
+        self.memory = fast_queue(size=30000)
 
     def _huber_loss(self, target, pred, clip_delta=1.):
         error = K.abs(target - pred)

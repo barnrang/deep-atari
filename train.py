@@ -1,5 +1,5 @@
 import gym
-from agent import DQAgent
+from agent_double import DQAgent
 import numpy as np
 
 EP = 50000
@@ -24,6 +24,7 @@ def main():
     config.action_choices = action_size
     config.img_size = state_space
     agent = DQAgent(config)
+    agent.load_model('model/atariv2.h5')
     batch_size = 32
 
     agent.update_target_model()
@@ -33,11 +34,11 @@ def main():
         state = np.expand_dims(state, axis=0)
         state = agent.gray_scale(state)
         state = np.stack([state for _ in range(4)], axis=-1)
+        next_state = state.copy()
         point = 0
         done = False
         for t in range(5000):
             action = agent.act(state)
-            next_state = state.copy()
             tmp, reward, done, _ = env.step(action)
             tmp_state = agent.gray_scale(np.expand_dims(tmp, axis=0))
 
@@ -49,7 +50,7 @@ def main():
             reward  = reward if not done else -1
             point += reward
             agent.remember(state, action, reward, next_state, done)
-            state = next_state
+            state = next_state.copy()
             if done:
                 print('episode {}/{}, score: {}'.format(e, EP, point))
 
