@@ -44,7 +44,7 @@ def main():
 
             # Stacking most recent 4 screens
             # Shift 3 to left (history) and append to the right
-            next_state[:,:,:,0:3] = next_state[:,:,:,1:4]
+            next_state = np.roll(state, -1, axis=3)
             next_state[:,:,:,3] = tmp_state
 
             reward  = reward if not done else -1
