@@ -37,7 +37,7 @@ def main():
         action = np.argmax(Q)
         observation, reward, done, info = env.step(action)
         tmp_state = agent.gray_scale(np.expand_dims(observation, axis=0))
-        state[:,:,:,0:3] = state[:,:,:,1:4]
+        state = np.roll(state, -1, axis=3)
         state[:,:,:,3] = tmp_state
         tot_reward += reward
     print('Game ended! Total reward: {}'.format(tot_reward))
