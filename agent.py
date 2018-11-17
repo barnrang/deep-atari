@@ -33,7 +33,6 @@ class DQAgent:
             MaxPooling2D(),
             Flatten()
         ]
-
         action_seq = [
             Dense(256,activation='relu'),
             Dropout(self.config.dropout_rate),

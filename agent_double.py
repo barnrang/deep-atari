@@ -9,6 +9,16 @@ import numpy as np
 import gym
 from collections import deque
 
+class Config:
+    img_size = (210, 160, 4)
+    dropout_rate = 0.75
+    lr = 3e-5
+    action_choices = 3
+    epsilon = 1.
+    epsilon_min = 0.1
+    epsilon_decay = 0.999
+    gamma = 0.95
+
 class DQAgent:
     def __init__(self, config):
         self.config = config
@@ -67,7 +77,11 @@ class DQAgent:
     def replay(self, batch_size):
         if batch_size > len(self.memory):
             return
-        batch_indice = self.memory.random_batch(batch_size)
+        
+        if random.random() < 0.5:    
+            batch_indice = self.memory.random_batch(batch_size)
+        else:
+            batch_indice = self.memory.random_unweight_batch(batch_size)
         minibatch = [self.memory[x] for x in batch_indice]
         for idx, (state, action, reward, next_state, done) in enumerate(minibatch):
             target = self.model.predict(state)
@@ -92,3 +106,9 @@ class DQAgent:
 
     def load_model(self, path):
         self.model.load_weights(path)
+
+
+if __name__ == "__main__":
+    config = Config()
+    test_agent = DQAgent(config)
+    test_agent

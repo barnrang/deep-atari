@@ -8,6 +8,7 @@ class fast_queue(keras.callbacks.Callback):
         self.data = [None] * (size + 1)
         self.sam_loss = np.array([0.] * (size + 1))
         self.indice = list(range(0, size + 1))
+        self.filled = False
         
         # state index (training)
         self.idx = 0
@@ -31,16 +32,26 @@ class fast_queue(keras.callbacks.Callback):
 
     def __getitem__(self, idx):
         return self.data[(self.start + idx) % self.size]
+    
+    def get_loss(self, idx):
+        return self.sam_loss[(self.start + idx) % self.size]
 
     def random_batch(self, sample_num):
         # Return index list
         # Prioritize higher loss sample (Prioritized Replay)
         return np.random.choice(self.indice, sample_num, replace=False, p = self.sam_loss/self.sam_loss.sum())
     
+    def random_unweight_batch(self, sample_num):
+        
+        if self.filled:
+            return np.random.choice(self.indice, sample_num)
+        else:
+            return np.random.choice(list(range(self.end)), sample_num)
+    
     def on_batch_end(self, batch, logs={}):
         # Keras callback
         self.loss = logs.get('loss')
-        print(self.loss)
+        #print(self.loss)
 
     def save_loss(self, idx):
         self.sam_loss[(self.start + idx) % self.size] = self.loss
@@ -51,6 +62,7 @@ class fast_queue(keras.callbacks.Callback):
         self.end = (self.end + 1) % self.size
 
         if self.start == self.end:
+            self.filled = True
             self.sam_loss[self.start] = 0.
             self.start = (self.start + 1) % self.size
 
