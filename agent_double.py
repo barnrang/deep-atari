@@ -84,16 +84,18 @@ class DQAgent:
             batch_indice = self.memory.random_unweight_batch(batch_size)
         minibatch = [self.memory[x] for x in batch_indice]
         for idx, (state, action, reward, next_state, done) in enumerate(minibatch):
-            target = self.model.predict(state)
+            tf_state = self.gray_scale(state)
+            tf_next = self.gray_scale(next_state)
+            target = self.model.predict(tf_state)
             if done:
                 target[0][action] = reward
             else:
                 # Double Q-learning
-                t_inner = self.model.predict(next_state)[0]
-                t_score = self.target_model.predict(next_state)[0][np.argmax(t_inner)]
+                t_inner = self.model.predict(tf_next)[0]
+                t_score = self.target_model.predict(tf_next)[0][np.argmax(t_inner)]
                 target[0][action] = reward + self.config.gamma * t_score
 
-            self.model.fit(state, target, epochs=1, verbose=0, callbacks=[self.memory])
+            self.model.fit(tf_state, target, epochs=1, verbose=0, callbacks=[self.memory])
             self.memory.save_loss(batch_indice[idx])
         if self.config.epsilon > self.config.epsilon_min:
             self.config.epsilon *= self.config.epsilon_decay

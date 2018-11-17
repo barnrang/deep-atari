@@ -32,7 +32,6 @@ def main():
     for e in range(EP):
         state = env.reset()
         state = np.expand_dims(state, axis=0)
-        state = agent.gray_scale(state)
         state = np.stack([state for _ in range(4)], axis=-1)
         next_state = state.copy()
         point = 0
@@ -40,7 +39,7 @@ def main():
         for t in range(5000):
             action = agent.act(state)
             tmp, reward, done, _ = env.step(action)
-            tmp_state = agent.gray_scale(np.expand_dims(tmp, axis=0))
+            tmp_state = np.expand_dims(tmp, axis=0)
 
             # Stacking most recent 4 screens
             # Shift 3 to left (history) and append to the right
