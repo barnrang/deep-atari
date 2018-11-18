@@ -2,15 +2,15 @@ import gym
 from agent_double import DQAgent
 import numpy as np
 
-EP = 50000
+EP = 500000
 
 class Config:
-    img_size = (210, 160, 4)
-    dropout_rate = 0.75
+    img_size = (105, 80, 4)
+    dropout_rate = 0.1
     lr = 3e-5
     action_choices = 3
     epsilon = 1.
-    epsilon_min = 0.1
+    epsilon_min = 0.05
     epsilon_decay = 0.999
     gamma = 0.95
 
@@ -18,16 +18,20 @@ def main():
     env = gym.make('Breakout-v0')
 
     # input dimension (210,  160, 4)
-    state_space = env.observation_space.shape[:2] + (4,)
+    #state_space = env.observation_space.shape[:2] + (4,)
     action_size = env.action_space.n
     config = Config()
     config.action_choices = action_size
-    config.img_size = state_space
+    #config.img_size = state_space
     agent = DQAgent(config)
-    agent.load_model('model/atariv2.h5')
+    try:
+        agent.load_model('model/atariv2.h5')
+    except:
+        print('cannot load model')
     batch_size = 32
 
     agent.update_target_model()
+    f = open('record.txt', 'w+')
 
     for e in range(EP):
         state = env.reset()
@@ -44,7 +48,8 @@ def main():
             # Stacking most recent 4 screens
             # Shift 3 to left (history) and append to the right
             next_state = np.roll(state, -1, axis=3)
-            next_state[:,:,:,3] = tmp_state
+            #print(next_state.shape)
+            next_state[:,:,:,:,3] = tmp_state
 
             reward  = reward if not done else -1
             point += reward
@@ -52,7 +57,8 @@ def main():
             state = next_state.copy()
             if done:
                 print('episode {}/{}, score: {}'.format(e, EP, point))
-
+                print('observation ', agent.config.epsilon)
+                f.write(str(point))
                 # Print counted frames
                 print(t)
                 agent.update_target_model()

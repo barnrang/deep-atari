@@ -54,7 +54,8 @@ class fast_queue(keras.callbacks.Callback):
         #print(self.loss)
 
     def save_loss(self, idx):
-        self.sam_loss[(self.start + idx) % self.size] = self.loss
+        #self.sam_loss[(self.start + idx) % self.size] = self.loss
+        self.sam_loss[idx] = self.loss
 
     def append(self, item):
         self.data[self.end] = item
